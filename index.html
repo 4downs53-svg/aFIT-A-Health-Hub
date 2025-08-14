@@ -3,12 +3,368 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>aFIT — A Health Hub (Enhanced)</title>
-<!-- Truncated for brevity in this example; full HTML content would be placed here --> 
+<title>aFIT — Step 1: Goals</title>
+<style>
+  :root { --bg:#f8fafc; --fg:#0f172a; --muted:#64748b; --card:#ffffff; --green:#16a34a; --red:#dc2626; --border:#e2e8f0; --brand:#0ea5e9; --chart:#0ea5e9;}
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--fg); }
+  header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 20px; border-bottom:1px solid var(--border); background:#fff; position:sticky; top:0; z-index:5;}
+  h1 { font-size: 20px; margin:0; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 16px 20px 40px; }
+  .row { display:flex; flex-wrap: wrap; gap:12px; align-items:center; }
+  .btn { background:var(--brand); color:#fff; border:none; padding:10px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
+  .btn.ghost { background:transparent; color:var(--brand); border:1px solid var(--brand); }
+  .hint { color: var(--muted); font-size: 12px; }
+  .card { background: var(--card); border:1px solid var(--border); border-radius:16px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); margin-top:12px;}
+  .card .hd { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+  .card .bd { padding:14px 16px; }
+  .grid { display:grid; gap:12px; }
+  @media(min-width: 768px){ .grid.cols-2{ grid-template-columns: repeat(2,1fr);} .grid.cols-3{ grid-template-columns: repeat(3,1fr);} .grid.cols-4{ grid-template-columns: repeat(4,1fr);} }
+  .metric { border:1px solid var(--border); border-radius:12px; padding:10px; background:#fff; min-height:76px; }
+  .metric .t { font-size:12px; color:var(--muted); display:flex; justify-content:space-between; }
+  .metric .v { font-size:18px; font-weight:700; margin-top:4px; }
+  .delta { font-size:12px; font-weight:700; }
+  .delta.up { color: var(--green); }
+  .delta.down { color: var(--red); }
+  select, .input { border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:#fff; }
+  .alert { display:flex; align-items:center; gap:8px; font-size:14px; padding:8px 10px; border-radius:10px; border:1px solid var(--border); }
+  .ok { color: var(--green); }
+  .no { color: var(--red); }
+  .nowrap { white-space: nowrap; }
+  .sr { position:absolute; left:-9999px; }
+  .skeleton { background: linear-gradient(90deg,#f2f4f8 25%,#e6e9ef 37%,#f2f4f8 63%); background-size:400% 100%; animation: shimmer 1.2s infinite; border-radius:8px; height: 18px; }
+  @keyframes shimmer { 0%{background-position: 100% 0} 100%{background-position: 0 0} }
+  canvas { width: 100%; height: 120px; border-radius: 8px; background: #fff; }
+  .section-title { font-weight:700; margin: 4px 0; }
+</style>
+</head>
 <body>
-<h1>Enhanced aFIT — A Health Hub</h1>
-<p>This is the enhanced version placeholder. The complete feature-rich HTML would go here,
-including goals personalization, weekly summaries, multi-metric explorer, accessibility settings,
-data import/export, etc.</p>
+<header class="container">
+  <h1>aFIT — Step 1: Goals</h1>
+  <div class="row">
+    <button id="btnSample" class="btn">Load Sample Data</button>
+    <label class="btn ghost" for="fileCSV">Import CSV</label>
+    <input id="fileCSV" type="file" accept=".csv" class="sr">
+  </div>
+</header>
+<main class="container">
+  <section class="card">
+    <div class="hd">
+      <div>
+        <div class="section-title">Today</div>
+        <div id="todayDate" class="hint">— • Deltas vs 7‑day avg</div>
+      </div>
+    </div>
+    <div class="bd">
+      <div id="nba" class="hint" style="margin-bottom:8px">Load data to see a recommendation.</div>
+      <div id="metricsGrid" class="grid cols-4"></div>
+    </div>
+  </section>
+
+  <section id="trends" class="grid cols-3"></section>
+
+  <section class="card">
+    <div class="hd"><div class="section-title">Insight Builder</div></div>
+    <div class="bd">
+      <div class="row" style="margin-bottom:8px">
+        <label> X&nbsp;<select id="selX"></select></label>
+        <label> Y&nbsp;<select id="selY"></select></label>
+        <div class="hint">Pearson r: <b id="corrVal">n/a</b></div>
+      </div>
+      <div class="hint" id="corrText">Load sample data or import a CSV to compute relationships.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="hd"><div class="section-title">Goals & Alerts (last 7 days)</div></div>
+    <div class="bd">
+      <div class="grid cols-3" id="alerts"></div>
+      <hr style="border: none; border-top:1px solid var(--border); margin:12px 0">
+      <div>
+        <div class="section-title">Your Goals</div>
+        <div class="hint">Personalize targets. Saved on this device.</div>
+        <div class="row" style="margin-top:8px">
+          <label>Steps/day <input id="g_steps" class="input" type="number" value="8000"></label>
+          <label>Sleep (h) <input id="g_sleep" class="input" type="number" step="0.1" value="7.0"></label>
+          <label>Sleep quality (%) <input id="g_quality" class="input" type="number" value="75"></label>
+          <label>Calories ≤ <input id="g_cal" class="input" type="number" value="2900"></label>
+          <button id="btnSaveGoals" class="btn">Save Goals</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  const METRICS = [
+    { key: "steps", label: "Steps" },
+    { key: "hrv", label: "HRV (ms)", unit: "ms" },
+    { key: "rhr", label: "Resting HR", unit: "bpm" },
+    { key: "sleep_hours", label: "Sleep (h)", unit: "h" },
+    { key: "sleep_quality", label: "Sleep Quality (%)", unit: "%" },
+    { key: "weight", label: "Weight (lb)", unit: "lb" },
+    { key: "body_fat", label: "Body Fat (%)", unit: "%" },
+    { key: "calories", label: "Calories" },
+  ];
+  const state = { data: generateEmpty(28) };
+
+  const todayDate = document.getElementById('todayDate');
+  const nba = document.getElementById('nba');
+  const metricsGrid = document.getElementById('metricsGrid');
+  const trends = document.getElementById('trends');
+  const selX = document.getElementById('selX');
+  const selY = document.getElementById('selY');
+  const corrVal = document.getElementById('corrVal');
+  const corrText = document.getElementById('corrText');
+  const btnSample = document.getElementById('btnSample');
+  const fileCSV = document.getElementById('fileCSV');
+
+  const alerts = document.getElementById('alerts');
+  const g_steps = document.getElementById('g_steps');
+  const g_sleep = document.getElementById('g_sleep');
+  const g_quality = document.getElementById('g_quality');
+  const g_cal = document.getElementById('g_cal');
+  const btnSaveGoals = document.getElementById('btnSaveGoals');
+
+  METRICS.forEach(m => {
+    const optX = document.createElement('option'); optX.value = m.key; optX.textContent = m.label; selX.appendChild(optX);
+    const optY = document.createElement('option'); optY.value = m.key; optY.textContent = m.label; selY.appendChild(optY);
+  });
+  selX.value = 'calories'; selY.value = 'weight';
+
+  btnSample.addEventListener('click', () => { state.data = generateSampleData(28); renderAll(); });
+  fileCSV.addEventListener('change', handleCSV);
+  selX.addEventListener('change', renderCorrelation);
+  selY.addEventListener('change', renderCorrelation);
+
+  const goals = loadGoals();
+  g_steps.value = goals.steps; g_sleep.value = goals.sleep; g_quality.value = goals.sleep_quality; g_cal.value = goals.calories;
+
+  btnSaveGoals.addEventListener('click', () => {
+    const g = { steps:+g_steps.value||0, sleep:+g_sleep.value||0, sleep_quality:+g_quality.value||0, calories:+g_cal.value||0 };
+    localStorage.setItem('afit:goals', JSON.stringify(g));
+    renderAll();
+  });
+
+  renderAll();
+
+  function parseNumber(x){
+    if (x === null || x === undefined || x === '') return undefined;
+    const n = Number(String(x).replace(/[^0-9.\-]/g, ''));
+    return isFinite(n) ? n : undefined;
+  }
+  function handleCSV(e){
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(evt){
+      const text = evt.target.result;
+      const rows = csvToRows(text);
+      const header = rows[0].map(h => String(h).trim());
+      const dataRows = rows.slice(1).filter(r => r.length > 0);
+      const out = dataRows.map(r => {
+        const obj = {}; for (let i=0;i<header.length;i++) obj[header[i]] = r[i];
+        const rec = {
+          date: String(obj.date || obj.Date || obj.DATE || "").slice(0, 10),
+          steps: parseNumber(obj.steps ?? obj.Steps),
+          hrv: parseNumber(obj.hrv ?? obj.HRV),
+          rhr: parseNumber(obj.rhr ?? obj.RHR ?? obj.rest_hr),
+          sleep_hours: parseNumber(obj.sleep_hours ?? obj.sleep ?? obj.SleepHours),
+          sleep_quality: parseNumber(obj.sleep_quality ?? obj.SleepQuality),
+          weight: parseNumber(obj.weight ?? obj.Weight),
+          body_fat: parseNumber(obj.body_fat ?? obj.BodyFat),
+          calories: parseNumber(obj.calories ?? obj.Calories),
+        };
+        return rec;
+      }).filter(r => r.date);
+      const byDate = {}; state.data.forEach(d => byDate[d.date] = Object.assign({}, d));
+      out.forEach(r => { byDate[r.date] = Object.assign({}, byDate[r.date] || {date:r.date}, r); });
+      state.data = Object.values(byDate).sort((a,b) => a.date.localeCompare(b.date));
+      renderAll();
+      fileCSV.value = '';
+    };
+    reader.readAsText(file);
+  }
+
+  function csvToRows(text){
+    const rows = []; let row = []; let cur = ''; let inQuotes = false;
+    for(let i=0;i<text.length;i++){
+      const c = text[i];
+      if (c === '\"'){
+        if (inQuotes && text[i+1] === '\"'){ cur += '\"'; i++; }
+        else { inQuotes = !inQuotes; }
+      } else if (c === ',' && !inQuotes){
+        row.push(cur); cur = '';
+      } else if ((c === '\n' || c === '\r') && !inQuotes){
+        if (cur !== '' || row.length) { row.push(cur); rows.push(row); row = []; cur = ''; }
+      } else { cur += c; }
+    }
+    if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+    return rows;
+  }
+
+  function generateEmpty(days){
+    const start = new Date(); start.setDate(start.getDate() - (days-1));
+    const arr = []; for(let i=0;i<days;i++){ const d = new Date(start); d.setDate(start.getDate()+i); arr.push({ date: d.toISOString().slice(0,10) }); }
+    return arr;
+  }
+
+  function generateSampleData(days){
+    const start = new Date(); start.setDate(start.getDate() - (days-1));
+    const arr = [];
+    let weight = 245, bf = 19.2, rhr = 57, hrv = 58;
+    for (let i=0;i<days;i++){
+      const d = new Date(start); d.setDate(start.getDate()+i);
+      const weekday = d.getDay();
+      const steps = Math.round(6000 + 3000 * Math.sin(i / 3) + (weekday >= 1 && weekday <= 5 ? 2000 : -500) + Math.random() * 800);
+      const calories = Math.round(2700 + (steps - 8000) * 0.05 + (Math.random() - 0.5) * 200);
+      const sleep_hours = Number((7.2 + (Math.random() - 0.5) * 1.2 + (weekday === 0 ? 0.5 : 0)).toFixed(1));
+      const sleep_quality = Math.max(50, Math.min(100, Math.round(80 + (Math.random() - 0.5) * 20 + (sleep_hours > 7 ? 5 : -5))));
+      rhr = Math.max(50, Math.min(65, rhr + (Math.random() - 0.5) * 1.2 + (sleep_hours < 6.5 ? 0.6 : 0)));
+      hrv = Math.max(40, Math.min(85, hrv + (Math.random() - 0.5) * 2 - (rhr > 60 ? 0.8 : 0)));
+      const surplus = calories - 2900;
+      weight = Number((weight + surplus / 7000 + (Math.random() - 0.5) * 0.15).toFixed(1));
+      bf = Number((bf + surplus / 20000 + (Math.random() - 0.5) * 0.03).toFixed(1));
+      arr.push({ date: d.toISOString().slice(0,10), steps, hrv: Math.round(hrv), rhr: Math.round(rhr), sleep_hours, sleep_quality, weight, body_fat: bf, calories });
+    }
+    return arr;
+  }
+
+  function rollingAvg(arr, window){
+    const out = [];
+    for (let i=0;i<arr.length;i++){
+      const s = Math.max(0, i-window+1);
+      const slice = arr.slice(s, i+1).filter(n => typeof n === 'number');
+      out.push(slice.length ? slice.reduce((a,b)=>a+b,0)/slice.length : undefined);
+    }
+    return out;
+  }
+
+  function pearson(xs, ys){
+    const n = Math.min(xs.length, ys.length);
+    if (n < 3) return NaN;
+    const mx = xs.reduce((a,b)=>a+b,0)/n;
+    const my = ys.reduce((a,b)=>a+b,0)/n;
+    let num=0, dx=0, dy=0;
+    for (let i=0;i<n;i++){ const vx=xs[i]-mx; const vy=ys[i]-my; num+=vx*vy; dx+=vx*vx; dy+=vy*vy; }
+    return num/Math.sqrt(dx*dy);
+  }
+
+  function fmt(v, unit){
+    if (v === undefined) return '—';
+    if (unit === '%') return v.toFixed(1) + ' %';
+    if (unit === 'h') return v.toFixed(1) + ' h';
+    if (unit === 'ms') return v.toFixed(0) + ' ms';
+    if (unit === 'bpm') return v.toFixed(0) + ' bpm';
+    if (unit === 'lb') return v.toFixed(1) + ' lb';
+    return String(v.toFixed(0));
+  }
+
+  function drawLineChart(canvas, data, key){
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+    ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1;
+    for(let i=0;i<=4;i++){ const y = 10 + i*(canvas.height-20)/4; ctx.beginPath(); ctx.moveTo(30,y); ctx.lineTo(canvas.width-10,y); ctx.stroke(); }
+    const vals = data.map(d => d[key]).filter(n => typeof n === 'number');
+    if (!vals.length) return;
+    const min = Math.min.apply(null, vals);
+    const max = Math.max.apply(null, vals);
+    const pad = (max-min)*0.1 || 1;
+    const yMin = min - pad, yMax = max + pad;
+    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--chart').trim() || '#0ea5e9'; ctx.lineWidth = 2; ctx.beginPath();
+    data.forEach((d,i) => {
+      const v = d[key]; if (typeof v !== 'number') return;
+      const x = 30 + i * (canvas.width - 40) / Math.max(1, data.length-1);
+      const y = 10 + (yMax - v) * (canvas.height - 20) / (yMax - yMin);
+      if (i === 0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  }
+
+  function renderAll(){
+    const today = state.data[state.data.length - 1];
+    todayDate.textContent = (today?.date || '—') + ' • Deltas vs 7‑day avg';
+
+    const avgs = {}; METRICS.forEach(m => { avgs[m.key] = rollingAvg(state.data.map(d => d[m.key]), 7); });
+    const baselineIdx = Math.max(0, state.data.length - 2);
+    const baseline = {}; METRICS.forEach(m => { baseline[m.key] = avgs[m.key][baselineIdx]; });
+
+    nba.textContent = computeNBA(today, baseline);
+
+    metricsGrid.innerHTML = '';
+    METRICS.forEach(m => {
+      const val = today && typeof today[m.key] === 'number' ? today[m.key] : undefined;
+      const base = baseline[m.key];
+      const d = delta(val, base, m.key);
+      const wrap = document.createElement('div'); wrap.className = 'metric';
+      const top = document.createElement('div'); top.className = 't';
+      const name = document.createElement('span'); name.textContent = m.label;
+      const dEl = document.createElement('span'); dEl.className = d.cls; dEl.textContent = d.text;
+      top.appendChild(name); top.appendChild(dEl);
+      const valEl = document.createElement('div'); valEl.className = 'v';
+      if (typeof val === 'number') { valEl.textContent = fmt(val, m.unit); }
+      else { valEl.innerHTML = '<span class="skeleton" style="display:inline-block;width:60px"></span>'; }
+      const baseEl = document.createElement('div'); baseEl.className = 'hint'; baseEl.textContent = '7‑day avg: ' + (typeof base === 'number' ? fmt(base, m.unit) : '—');
+      wrap.appendChild(top); wrap.appendChild(valEl); wrap.appendChild(baseEl);
+      metricsGrid.appendChild(wrap);
+    });
+
+    trends.innerHTML = '';
+    const hasAny = state.data.some(d => METRICS.some(m => typeof d[m.key] === 'number'));
+    METRICS.forEach(m => {
+      const card = document.createElement('div'); card.className = 'card';
+      const hd = document.createElement('div'); hd.className = 'hd'; hd.innerHTML = '<div class="section-title">'+m.label+'</div>';
+      const bd = document.createElement('div'); bd.className = 'bd';
+      const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 120;
+      bd.appendChild(canvas);
+      card.appendChild(hd); card.appendChild(bd);
+      trends.appendChild(card);
+      if (hasAny) drawLineChart(canvas, state.data, m.key);
+      else { const sk = document.createElement('div'); sk.className = 'skeleton'; sk.style.height = '120px'; bd.replaceChild(sk, canvas); }
+    });
+
+    renderCorrelation();
+    renderAlerts();
+  }
+
+  function delta(val, base, key){
+    if (typeof val !== 'number' || typeof base !== 'number') return { text: '—', cls: 'delta' };
+    const diff = val - base;
+    const goodHigh = ['steps','hrv','sleep_hours','sleep_quality'];
+    const goodLow = ['rhr','weight','body_fat','calories'];
+    let cls = 'delta';
+    if (goodHigh.indexOf(key) >= 0) cls += diff >= 0 ? ' up' : ' down';
+    if (goodLow.indexOf(key) >= 0) cls += diff <= 0 ? ' up' : ' down';
+    return { text: (Math.abs(diff) < 1e-9 ? '±0' : (diff > 0 ? '+' : '') + diff.toFixed(1)), cls: cls };
+  }
+
+  function computeNBA(today, baseline){
+    if (!today) return 'Load data to see a recommendation.';
+    const msgs = [];
+    if (typeof today.calories === 'number' && typeof baseline.calories === 'number' && today.calories > baseline.calories + 150) msgs.push('Trim ~150–250 kcal today.');
+    if (typeof today.steps === 'number' && typeof baseline.steps === 'number' && today.steps < baseline.steps - 1000) msgs.push('Add ~1k–2k steps.');
+    if (typeof today.sleep_hours === 'number' && today.sleep_hours < 7) msgs.push('Target ≥7 h sleep.');
+    if (typeof today.sleep_quality === 'number' && today.sleep_quality < 75) msgs.push('Improve sleep quality: wind-down, cool/dark room.');
+    return msgs[0] || 'Stay the course. Small, steady wins.';
+  }
+
+  function renderCorrelation(){
+    const xKey = selX.value, yKey = selY.value;
+    const xs = state.data.map(d => d[xKey]).filter(n => typeof n === 'number');
+    const ys = state.data.map(d => d[yKey]).filter(n => typeof n === 'number');
+    const r = pearson(xs, ys);
+    corrVal.textContent = isFinite(r) ? r.toFixed(2) : 'n/a';
+    let msg = 'Load sample data or import a CSV to compute relationships.';
+    if (isFinite(r)){
+      const a = Math.abs(r);
+      msg = a < 0.2 ? 'Little to no linear relationship.'
+        : a < 0.4 ? 'Weak relationship; interpret cautiously.'
+        : a < 0.7 ? (r > 0 ? 'Moderate positive: as X rises, Y tends to rise.' : 'Moderate negative: as X rises, Y tends to fall.')
+        : (r > 0 ? 'Strong positive: X and Y move together.' : 'Strong negative: X up, Y down.');
+    }
+    corrText.textContent = msg;
+  }
+})();</script>
 </body>
 </html>
