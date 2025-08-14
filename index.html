@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>aFIT — Step 4: Explorer + Export</title>
+<title>aFIT — Step 5: Weekly Report</title>
 <style>
   :root { --bg:#f8fafc; --fg:#0f172a; --muted:#64748b; --card:#ffffff; --green:#16a34a; --red:#dc2626; --border:#e2e8f0; --brand:#0ea5e9; --chart:#0ea5e9;}
   * { box-sizing: border-box; }
@@ -26,34 +26,32 @@
   .delta { font-size:12px; font-weight:700; }
   .delta.up { color: var(--green); }
   .delta.down { color: var(--red); }
-  select, .input { border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:#fff; }
+  select, .input, textarea { border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:#fff; font-family: inherit; }
+  .alert { display:flex; align-items:center; gap:8px; font-size:14px; padding:8px 10px; border-radius:10px; border:1px solid var(--border); }
+  .ok { color: var(--green); }
+  .no { color: var(--red); }
+  .nowrap { white-space: nowrap; }
   .sr { position:absolute; left:-9999px; }
   .skeleton { background: linear-gradient(90deg,#f2f4f8 25%,#e6e9ef 37%,#f2f4f8 63%); background-size:400% 100%; animation: shimmer 1.2s infinite; border-radius:8px; height: 18px; }
   @keyframes shimmer { 0%{background-position: 100% 0} 100%{background-position: 0 0} }
   canvas { width: 100%; height: 120px; border-radius: 8px; background: #fff; }
   .section-title { font-weight:700; margin: 4px 0; }
-  /* Dark mode */
+  @media print { header, #controls { display:none !important; } .card { break-inside: avoid; } body { background:#fff; color:#000; } }
   .dark { --bg:#0b1220; --fg:#f8fafc; --muted:#93a3b8; --card:#0f172a; --border:#1f2a44; --brand:#38bdf8; --chart:#38bdf8; }
   .dark header { background: var(--card); border-color: var(--border); }
   .dark canvas { background: var(--card); }
 </style>
 </head>
 <body>
-<header class="container" id="controls">
-  <h1>aFIT — Step 4: Explorer + Export</h1>
+<header class="container">
+  <h1>aFIT — Step 5: Weekly Report</h1>
   <div class="row">
     <button id="btnSample" class="btn">Load Sample Data</button>
     <label class="btn ghost" for="fileCSV">Import CSV</label>
     <input id="fileCSV" type="file" accept=".csv" class="sr">
     <button id="btnExport" class="btn ghost">Export CSV</button>
-    <div class="row">
-      <label class="hint">Dark <input type="checkbox" id="toggleDark"></label>
-      <label class="hint">High Contrast <input type="checkbox" id="toggleHC"></label>
-      <label class="hint">Font <input type="range" id="fontRange" min="0.9" max="1.5" step="0.05" value="1"></label>
-      <label class="hint">Units 
-        <select id="units"><option value="imperial">lb</option><option value="metric">kg</option></select>
-      </label>
-    </div>
+    <button id="btnPrint" class="btn ghost">Print / Save PDF</button>
+    <button id="btnCopy" class="btn ghost">Copy Coach Share Text</button>
   </div>
 </header>
 <main class="container" id="app" style="font-size: var(--fs, 1rem)">
@@ -63,9 +61,19 @@
         <div class="section-title">Today</div>
         <div id="todayDate" class="hint">— • Deltas vs 7‑day avg</div>
       </div>
-      <div id="nba" class="hint">Load data to see a recommendation.</div>
+      <div class="row" id="controls">
+        <label class="hint">Dark <input type="checkbox" id="toggleDark"></label>
+        <label class="hint">High Contrast <input type="checkbox" id="toggleHC"></label>
+        <label class="hint">Font <input type="range" id="fontRange" min="0.9" max="1.5" step="0.05" value="1"></label>
+        <label class="hint">Units 
+          <select id="units"><option value="imperial">lb</option><option value="metric">kg</option></select>
+        </label>
+      </div>
     </div>
-    <div class="bd"><div id="metricsGrid" class="grid cols-4"></div></div>
+    <div class="bd">
+      <div id="nba" class="hint" style="margin-bottom:8px">Load data to see a recommendation.</div>
+      <div id="metricsGrid" class="grid cols-4"></div>
+    </div>
   </section>
 
   <section id="trends" class="grid cols-3"></section>
@@ -83,14 +91,43 @@
   </section>
 
   <section class="card">
-    <div class="hd"><div class="section-title">Multi‑Metric Explorer</div></div>
+    <div class="hd"><div class="section-title">Goals</div></div>
     <div class="bd">
-      <div class="row" style="margin-bottom:8px">
-        <label> Compare (pick up to 3)&nbsp;
-          <select id="selCompare" multiple size="4" style="min-width:220px"></select>
-        </label>
+      <div class="row" style="margin-top:8px">
+        <label>Steps/day <input id="g_steps" class="input" type="number" value="8000"></label>
+        <label>Sleep (h) <input id="g_sleep" class="input" type="number" step="0.1" value="7.0"></label>
+        <label>Sleep quality (%) <input id="g_quality" class="input" type="number" value="75"></label>
+        <label>Calories ≤ <input id="g_cal" class="input" type="number" value="2900"></label>
+        <label>Weight goal <input id="g_weight" class="input" type="number" step="0.1" value="215"></label>
+        <button id="btnSaveGoals" class="btn">Save Goals</button>
       </div>
-      <div id="compareCharts" class="grid cols-3"></div>
+    </div>
+  </section>
+
+  <section class="card" id="weeklyReport">
+    <div class="hd"><div class="section-title">Weekly Report (last 7 days)</div></div>
+    <div class="bd">
+      <div id="reportRange" class="hint">—</div>
+      <div class="grid cols-3" style="margin-top:8px">
+        <div><b>Activity</b><div id="rSteps">—</div></div>
+        <div><b>Recovery</b><div id="rSleep">—</div></div>
+        <div><b>Nutrition</b><div id="rCals">—</div></div>
+      </div>
+      <div class="grid cols-3" style="margin-top:8px">
+        <div><b>Body</b><div id="rBody">—</div></div>
+        <div><b>Goal Checks</b><div id="rGoals">—</div></div>
+        <div><b>Correlations</b><div id="rCorr">—</div></div>
+      </div>
+      <div style="margin-top:8px">
+        <b>Highlights</b>
+        <ul id="rWins" style="margin:6px 0"></ul>
+        <b>Focus Next Week</b>
+        <ul id="rFocus" style="margin:6px 0"></ul>
+      </div>
+      <div style="margin-top:8px">
+        <b>Coach Share Text</b>
+        <textarea id="shareText" rows="5" style="width:100%" readonly></textarea>
+      </div>
     </div>
   </section>
 </main>
@@ -107,7 +144,11 @@
     { key: "body_fat", label: "Body Fat (%)", unit: "%" },
     { key: "calories", label: "Calories" },
   ];
-  const state = { data: generateEmpty(28), prefs: loadPrefs() };
+  const state = {
+    data: generateEmpty(28),
+    prefs: loadPrefs(),
+    goals: loadGoals(),
+  };
 
   const todayDate = document.getElementById('todayDate');
   const nba = document.getElementById('nba');
@@ -117,45 +158,68 @@
   const selY = document.getElementById('selY');
   const corrVal = document.getElementById('corrVal');
   const corrText = document.getElementById('corrText');
-  const selCompare = document.getElementById('selCompare');
-  const compareCharts = document.getElementById('compareCharts');
   const btnSample = document.getElementById('btnSample');
   const fileCSV = document.getElementById('fileCSV');
   const btnExport = document.getElementById('btnExport');
+  const btnPrint = document.getElementById('btnPrint');
+  const btnCopy = document.getElementById('btnCopy');
   const toggleDark = document.getElementById('toggleDark');
   const toggleHC = document.getElementById('toggleHC');
   const fontRange = document.getElementById('fontRange');
-  const unitsSel = document.getElementById('units');
-  const appRoot = document.getElementById('app');
+  const units = document.getElementById('units');
+  const g_steps = document.getElementById('g_steps');
+  const g_sleep = document.getElementById('g_sleep');
+  const g_quality = document.getElementById('g_quality');
+  const g_cal = document.getElementById('g_cal');
+  const g_weight = document.getElementById('g_weight');
+  const btnSaveGoals = document.getElementById('btnSaveGoals');
 
-  // apply prefs
-  toggleDark.checked = state.prefs.dark; toggleHC.checked = state.prefs.hc; fontRange.value = state.prefs.fs; unitsSel.value = state.prefs.units;
+  const reportRange = document.getElementById('reportRange');
+  const rSteps = document.getElementById('rSteps');
+  const rSleep = document.getElementById('rSleep');
+  const rCals = document.getElementById('rCals');
+  const rBody = document.getElementById('rBody');
+  const rGoals = document.getElementById('rGoals');
+  const rCorr = document.getElementById('rCorr');
+  const rWins = document.getElementById('rWins');
+  const rFocus = document.getElementById('rFocus');
+  const shareText = document.getElementById('shareText');
+
   document.body.classList.toggle('dark', state.prefs.dark);
   if (state.prefs.hc) document.body.style.filter = 'contrast(1.1) saturate(1.1)';
-  appRoot.style.setProperty('--fs', state.prefs.fs + 'rem');
+  document.getElementById('app').style.setProperty('--fs', state.prefs.fs + 'rem');
+  toggleDark.checked = state.prefs.dark; toggleHC.checked = state.prefs.hc; fontRange.value = state.prefs.fs; units.value = state.prefs.units;
 
   METRICS.forEach(m => {
-    const ox = document.createElement('option'); ox.value = m.key; ox.textContent = m.label; selX.appendChild(ox);
-    const oy = document.createElement('option'); oy.value = m.key; oy.textContent = m.label; selY.appendChild(oy);
-    const oc = document.createElement('option'); oc.value = m.key; oc.textContent = m.label; selCompare.appendChild(oc);
+    const optX = document.createElement('option'); optX.value = m.key; optX.textContent = m.label; selX.appendChild(optX);
+    const optY = document.createElement('option'); optY.value = m.key; optY.textContent = m.label; selY.appendChild(optY);
   });
   selX.value = 'calories'; selY.value = 'weight';
 
+  g_steps.value = state.goals.steps; g_sleep.value = state.goals.sleep; g_quality.value = state.goals.sleep_quality; g_cal.value = state.goals.calories; g_weight.value = state.goals.weight;
+
   btnSample.addEventListener('click', () => { state.data = generateSampleData(28); renderAll(); });
   fileCSV.addEventListener('change', handleCSV);
-  btnExport.addEventListener('click', exportCSV);
   selX.addEventListener('change', renderCorrelation);
   selY.addEventListener('change', renderCorrelation);
-  selCompare.addEventListener('change', renderCompare);
+  btnExport.addEventListener('click', exportCSV);
+  btnPrint.addEventListener('click', () => window.print());
+  btnCopy.addEventListener('click', () => { shareText.select(); document.execCommand('copy'); btnCopy.textContent = 'Copied!'; setTimeout(()=>btnCopy.textContent='Copy Coach Share Text',1200); });
   toggleDark.addEventListener('change', () => { state.prefs.dark = toggleDark.checked; savePrefs(); document.body.classList.toggle('dark', state.prefs.dark); });
   toggleHC.addEventListener('change', () => { state.prefs.hc = toggleHC.checked; savePrefs(); document.body.style.filter = state.prefs.hc ? 'contrast(1.1) saturate(1.1)' : ''; });
-  fontRange.addEventListener('input', () => { state.prefs.fs = parseFloat(fontRange.value); savePrefs(); appRoot.style.setProperty('--fs', state.prefs.fs + 'rem'); });
-  unitsSel.addEventListener('change', () => { state.prefs.units = unitsSel.value; savePrefs(); renderAll(); });
+  fontRange.addEventListener('input', () => { state.prefs.fs = parseFloat(fontRange.value); savePrefs(); document.getElementById('app').style.setProperty('--fs', state.prefs.fs + 'rem'); });
+  units.addEventListener('change', () => { state.prefs.units = units.value; savePrefs(); renderAll(); });
+  btnSaveGoals.addEventListener('click', () => {
+    state.goals = { steps:+g_steps.value||0, sleep:+g_sleep.value||0, sleep_quality:+g_quality.value||0, calories:+g_cal.value||0, weight:+g_weight.value||0 };
+    localStorage.setItem('afit:goals', JSON.stringify(state.goals));
+    renderAll();
+  });
 
   renderAll();
 
   function loadPrefs(){ try { return JSON.parse(localStorage.getItem('afit:prefs')) || {dark:false, hc:false, fs:1, units:'imperial'}; } catch { return {dark:false, hc:false, fs:1, units:'imperial'}; } }
   function savePrefs(){ localStorage.setItem('afit:prefs', JSON.stringify(state.prefs)); }
+  function loadGoals(){ try { return JSON.parse(localStorage.getItem('afit:goals')) || { steps:8000, sleep:7.0, sleep_quality:75, calories:2900, weight:215 }; } catch { return { steps:8000, sleep:7.0, sleep_quality:75, calories:2900, weight:215 }; } }
 
   function parseNumber(x){
     if (x === null || x === undefined || x === '') return undefined;
@@ -194,7 +258,6 @@
     };
     reader.readAsText(file);
   }
-
   function exportCSV(){
     const headers = ["date","steps","hrv","rhr","sleep_hours","sleep_quality","weight","body_fat","calories"];
     const lines = [headers.join(",")];
@@ -281,9 +344,7 @@
     if (unit === 'kg') return v.toFixed(1) + ' kg';
     return String(v.toFixed(0));
   }
-  function poundsDisplay(lb){
-    return state.prefs.units === 'imperial' ? lb.toFixed(1) + ' lb' : (lb * 0.45359237).toFixed(1) + ' kg';
-  }
+  function poundsDisplay(lb){ return state.prefs.units === 'imperial' ? lb.toFixed(1) + ' lb' : (lb * 0.45359237).toFixed(1) + ' kg'; }
 
   function renderAll(){
     const today = state.data[state.data.length - 1];
@@ -329,7 +390,7 @@
     });
 
     renderCorrelation();
-    renderCompare();
+    renderWeeklyReport();
   }
 
   function delta(val, base, key){
@@ -348,8 +409,8 @@
     const msgs = [];
     if (typeof today.calories === 'number' && typeof baseline.calories === 'number' && today.calories > baseline.calories + 150) msgs.push('Trim ~150–250 kcal today.');
     if (typeof today.steps === 'number' && typeof baseline.steps === 'number' && today.steps < baseline.steps - 1000) msgs.push('Add ~1k–2k steps.');
-    if (typeof today.sleep_hours === 'number' && today.sleep_hours < 7) msgs.push('Target ≥7 h sleep.');
-    if (typeof today.sleep_quality === 'number' && today.sleep_quality < 75) msgs.push('Improve sleep quality: wind-down, cool/dark room.');
+    if (typeof today.sleep_hours === 'number' && today.sleep_hours < state.goals.sleep) msgs.push('Target ≥'+state.goals.sleep+' h sleep.');
+    if (typeof today.sleep_quality === 'number' && today.sleep_quality < state.goals.sleep_quality) msgs.push('Improve sleep quality: earlier wind-down, dark/cool room.');
     return msgs[0] || 'Stay the course. Small, steady wins.';
   }
 
@@ -391,17 +452,65 @@
     corrText.textContent = msg;
   }
 
-  function renderCompare(){
-    const keys = Array.from(selCompare.selectedOptions).map(o => o.value).slice(0,3);
-    compareCharts.innerHTML = '';
-    keys.forEach(k => {
-      const card = document.createElement('div'); card.className='card';
-      const hd = document.createElement('div'); hd.className='hd'; hd.innerHTML = '<div class="section-title">'+(METRICS.find(m=>m.key===k).label)+'</div>';
-      const bd = document.createElement('div'); bd.className='bd';
-      const c = document.createElement('canvas'); c.width = 600; c.height = 120; bd.appendChild(c);
-      card.appendChild(hd); card.appendChild(bd); compareCharts.appendChild(card);
-      drawLineChart(c, state.data, k);
-    });
+  function renderWeeklyReport(){
+    const last7 = state.data.slice(-7);
+    if (!last7.length) return;
+    const start = last7[0].date, end = last7[last7.length-1].date;
+    reportRange.textContent = `${start} → ${end}`;
+
+    function avg(k){ const vals = last7.map(d => d[k]).filter(n => typeof n === 'number'); return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length) : undefined; }
+    const aSteps = avg('steps');
+    const aSleep = avg('sleep_hours');
+    const aQual = avg('sleep_quality');
+    const aCals = avg('calories');
+    const aWeight = avg('weight');
+    const firstW = last7.find(d=>typeof d.weight==='number')?.weight;
+    const lastW = [...last7].reverse().find(d=>typeof d.weight==='number')?.weight;
+    const wDelta = (typeof firstW==='number' && typeof lastW==='number') ? (lastW - firstW) : undefined;
+
+    rSteps.textContent = `Steps avg: ${aSteps?Math.round(aSteps):'—'}`;
+    rSleep.textContent = `Sleep avg: ${aSleep?aSleep.toFixed(1)+' h':'—'} • Quality: ${aQual?Math.round(aQual)+'%':'—'}`;
+    rCals.textContent = `Calories avg: ${aCals?Math.round(aCals):'—'}`;
+    rBody.textContent = `Weight avg: ${aWeight? poundsDisplay(aWeight):'—'}${wDelta!==undefined ? ` (${wDelta>0?'+':''}${(units.value==='imperial'?wDelta:(wDelta*0.45359237)).toFixed(1)} ${units.value==='imperial'?'lb':'kg'})` : ''}`;
+
+    const hits = [];
+    if (aSteps && aSteps >= state.goals.steps) hits.push('steps');
+    if (aSleep && aSleep >= state.goals.sleep) hits.push('sleep duration');
+    if (aQual && aQual >= state.goals.sleep_quality) hits.push('sleep quality');
+    if (aCals && aCals <= state.goals.calories) hits.push('calorie target');
+    rGoals.textContent = hits.length ? `Met: ${hits.join(', ')}` : 'Met: —';
+
+    const r = pearson(
+      state.data.map(d => d.calories).filter(n => typeof n === 'number'),
+      state.data.map(d => d.weight).filter(n => typeof n === 'number')
+    );
+    rCorr.textContent = isFinite(r) ? `Calories ↔ Weight r=${r.toFixed(2)}` : '—';
+
+    const wins = []; const focus = [];
+    if (aSteps && aSteps >= state.goals.steps) wins.push('Consistent activity volume.');
+    else focus.push('Add 1–2k daily steps.');
+    if (aSleep && aSleep >= state.goals.sleep) wins.push('Adequate sleep duration.');
+    else focus.push(`Aim for ≥ ${state.goals.sleep} h; earlier wind‑down.`);
+    if (aQual && aQual >= state.goals.sleep_quality) wins.push('Solid sleep quality.');
+    else focus.push('Improve bedroom light/temp; limit late caffeine.');
+    if (aCals && aCals <= state.goals.calories) wins.push('Calories on target.');
+    else focus.push('Trim ~150–250 kcal/day.');
+    rWins.innerHTML = wins.map(w=>`<li>${w}</li>`).join('') || '<li>—</li>';
+    rFocus.innerHTML = focus.map(w=>`<li>${w}</li>`).join('') || '<li>—</li>';
+
+    const share = [
+      `aFIT Weekly Report (${start} to ${end})`,
+      `Steps avg: ${aSteps?Math.round(aSteps):'—'}; Sleep: ${aSleep?aSleep.toFixed(1)+' h':'—'} (${aQual?Math.round(aQual)+'%':'—'})`,
+      `Calories avg: ${aCals?Math.round(aCals):'—'}; Weight avg: ${aWeight? (units.value==='imperial'?aWeight.toFixed(1)+' lb':(aWeight*0.45359237).toFixed(1)+' kg') : '—'}${wDelta!==undefined ? ` (${wDelta>0?'+':''}${(units.value==='imperial'?wDelta:(wDelta*0.45359237)).toFixed(1)} ${units.value==='imperial'?'lb':'kg'})` : ''}`,
+      `Goals met: ${hits.length?hits.join(', '):'—'}`,
+      wins.length ? `Highlights: ${wins.join(' ')}` : '',
+      focus.length ? `Focus: ${focus.join(' ')}` : '',
+    ].filter(Boolean).join('\n');
+    shareText.value = share;
+  }
+
+  function poundsDisplay(lb){
+    return units.value === 'imperial' ? lb.toFixed(1) + ' lb' : (lb * 0.45359237).toFixed(1) + ' kg';
   }
 })();
 </script>
