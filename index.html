@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>aFIT — Step 3: Accessibility</title>
+<title>aFIT — Step 4: Explorer + Export</title>
 <style>
   :root { --bg:#f8fafc; --fg:#0f172a; --muted:#64748b; --card:#ffffff; --green:#16a34a; --red:#dc2626; --border:#e2e8f0; --brand:#0ea5e9; --chart:#0ea5e9;}
   * { box-sizing: border-box; }
@@ -27,16 +27,11 @@
   .delta.up { color: var(--green); }
   .delta.down { color: var(--red); }
   select, .input { border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:#fff; }
-  .alert { display:flex; align-items:center; gap:8px; font-size:14px; padding:8px 10px; border-radius:10px; border:1px solid var(--border); }
-  .ok { color: var(--green); }
-  .no { color: var(--red); }
-  .nowrap { white-space: nowrap; }
   .sr { position:absolute; left:-9999px; }
   .skeleton { background: linear-gradient(90deg,#f2f4f8 25%,#e6e9ef 37%,#f2f4f8 63%); background-size:400% 100%; animation: shimmer 1.2s infinite; border-radius:8px; height: 18px; }
   @keyframes shimmer { 0%{background-position: 100% 0} 100%{background-position: 0 0} }
   canvas { width: 100%; height: 120px; border-radius: 8px; background: #fff; }
   .section-title { font-weight:700; margin: 4px 0; }
-
   /* Dark mode */
   .dark { --bg:#0b1220; --fg:#f8fafc; --muted:#93a3b8; --card:#0f172a; --border:#1f2a44; --brand:#38bdf8; --chart:#38bdf8; }
   .dark header { background: var(--card); border-color: var(--border); }
@@ -45,11 +40,12 @@
 </head>
 <body>
 <header class="container" id="controls">
-  <h1>aFIT — Step 3: Accessibility</h1>
+  <h1>aFIT — Step 4: Explorer + Export</h1>
   <div class="row">
     <button id="btnSample" class="btn">Load Sample Data</button>
     <label class="btn ghost" for="fileCSV">Import CSV</label>
     <input id="fileCSV" type="file" accept=".csv" class="sr">
+    <button id="btnExport" class="btn ghost">Export CSV</button>
     <div class="row">
       <label class="hint">Dark <input type="checkbox" id="toggleDark"></label>
       <label class="hint">High Contrast <input type="checkbox" id="toggleHC"></label>
@@ -67,7 +63,7 @@
         <div class="section-title">Today</div>
         <div id="todayDate" class="hint">— • Deltas vs 7‑day avg</div>
       </div>
-      <div id="nba" class="hint nowrap">Load data to see a recommendation.</div>
+      <div id="nba" class="hint">Load data to see a recommendation.</div>
     </div>
     <div class="bd"><div id="metricsGrid" class="grid cols-4"></div></div>
   </section>
@@ -83,6 +79,18 @@
         <div class="hint">Pearson r: <b id="corrVal">n/a</b></div>
       </div>
       <div class="hint" id="corrText">Load sample data or import a CSV to compute relationships.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="hd"><div class="section-title">Multi‑Metric Explorer</div></div>
+    <div class="bd">
+      <div class="row" style="margin-bottom:8px">
+        <label> Compare (pick up to 3)&nbsp;
+          <select id="selCompare" multiple size="4" style="min-width:220px"></select>
+        </label>
+      </div>
+      <div id="compareCharts" class="grid cols-3"></div>
     </div>
   </section>
 </main>
@@ -109,8 +117,11 @@
   const selY = document.getElementById('selY');
   const corrVal = document.getElementById('corrVal');
   const corrText = document.getElementById('corrText');
+  const selCompare = document.getElementById('selCompare');
+  const compareCharts = document.getElementById('compareCharts');
   const btnSample = document.getElementById('btnSample');
   const fileCSV = document.getElementById('fileCSV');
+  const btnExport = document.getElementById('btnExport');
   const toggleDark = document.getElementById('toggleDark');
   const toggleHC = document.getElementById('toggleHC');
   const fontRange = document.getElementById('fontRange');
@@ -124,15 +135,18 @@
   appRoot.style.setProperty('--fs', state.prefs.fs + 'rem');
 
   METRICS.forEach(m => {
-    const optX = document.createElement('option'); optX.value = m.key; optX.textContent = m.label; selX.appendChild(optX);
-    const optY = document.createElement('option'); optY.value = m.key; optY.textContent = m.label; selY.appendChild(optY);
+    const ox = document.createElement('option'); ox.value = m.key; ox.textContent = m.label; selX.appendChild(ox);
+    const oy = document.createElement('option'); oy.value = m.key; oy.textContent = m.label; selY.appendChild(oy);
+    const oc = document.createElement('option'); oc.value = m.key; oc.textContent = m.label; selCompare.appendChild(oc);
   });
   selX.value = 'calories'; selY.value = 'weight';
 
   btnSample.addEventListener('click', () => { state.data = generateSampleData(28); renderAll(); });
   fileCSV.addEventListener('change', handleCSV);
+  btnExport.addEventListener('click', exportCSV);
   selX.addEventListener('change', renderCorrelation);
   selY.addEventListener('change', renderCorrelation);
+  selCompare.addEventListener('change', renderCompare);
   toggleDark.addEventListener('change', () => { state.prefs.dark = toggleDark.checked; savePrefs(); document.body.classList.toggle('dark', state.prefs.dark); });
   toggleHC.addEventListener('change', () => { state.prefs.hc = toggleHC.checked; savePrefs(); document.body.style.filter = state.prefs.hc ? 'contrast(1.1) saturate(1.1)' : ''; });
   fontRange.addEventListener('input', () => { state.prefs.fs = parseFloat(fontRange.value); savePrefs(); appRoot.style.setProperty('--fs', state.prefs.fs + 'rem'); });
@@ -179,6 +193,18 @@
       fileCSV.value = '';
     };
     reader.readAsText(file);
+  }
+
+  function exportCSV(){
+    const headers = ["date","steps","hrv","rhr","sleep_hours","sleep_quality","weight","body_fat","calories"];
+    const lines = [headers.join(",")];
+    state.data.forEach(d => {
+      lines.push([d.date, d.steps??"", d.hrv??"", d.rhr??"", d.sleep_hours??"", d.sleep_quality??"", d.weight??"", d.body_fat??"", d.calories??""].join(","));
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'afit-data.csv'; a.click();
+    URL.revokeObjectURL(url);
   }
 
   function csvToRows(text){
@@ -303,6 +329,7 @@
     });
 
     renderCorrelation();
+    renderCompare();
   }
 
   function delta(val, base, key){
@@ -362,6 +389,19 @@
         : (r > 0 ? 'Strong positive: X and Y move together.' : 'Strong negative: X up, Y down.');
     }
     corrText.textContent = msg;
+  }
+
+  function renderCompare(){
+    const keys = Array.from(selCompare.selectedOptions).map(o => o.value).slice(0,3);
+    compareCharts.innerHTML = '';
+    keys.forEach(k => {
+      const card = document.createElement('div'); card.className='card';
+      const hd = document.createElement('div'); hd.className='hd'; hd.innerHTML = '<div class="section-title">'+(METRICS.find(m=>m.key===k).label)+'</div>';
+      const bd = document.createElement('div'); bd.className='bd';
+      const c = document.createElement('canvas'); c.width = 600; c.height = 120; bd.appendChild(c);
+      card.appendChild(hd); card.appendChild(bd); compareCharts.appendChild(card);
+      drawLineChart(c, state.data, k);
+    });
   }
 })();
 </script>
